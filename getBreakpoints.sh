@@ -3,6 +3,7 @@
 # vcf calls from indel callers
 vcf="$1"
 # where to write output of extracted breakpoints
+output="$2"
 
 egrep -v ^# "$vcf" | awk -F'\t' '{
 
@@ -52,4 +53,4 @@ egrep -v ^# "$vcf" | awk -F'\t' '{
 		print chrom, pos, "<INS>", insLength
 
 	}
-}'
+}' > "$output"
