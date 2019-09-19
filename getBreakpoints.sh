@@ -43,7 +43,7 @@ egrep -v ^# "$vcf" | awk -F'\t' '{
 
 		# deletion
 		delLength = length(ref) - length(alt)
-		print chrom, pos, "<DEl_L>", delLength 
+		print chrom, pos, "<DEL_L>", delLength 
 		print chrom, pos + delLength, "<DEL_R>", delLength
 
 	} else if (length(ref) < length(alt)) { 
