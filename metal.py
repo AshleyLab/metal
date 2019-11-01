@@ -131,8 +131,18 @@ def advance_readers(readers: [VariantReader]):
 		for reader in readers:
 			check_current(reader)
 		return False
+	
+	def get_chrom_idx(c):
+		if c.isdigit(): 
+			return int(c)
+		elif c == "X": 
+			return 23
+		return 24
+	
+	sorted_readers = sorted(readers_with_next,
+		key = lambda r: (get_chrom_idx(r.current[CHROM_INDEX]), int(r.current[POS_INDEX])))
+	lowest = sorted_readers[0]
 
-	lowest = min(readers_with_next, key=(lambda r: int(r.current[POS_INDEX])))
 	lowest_next = next(lowest.reader, None)
 
 	if lowest_next:
@@ -166,6 +176,7 @@ def compare_readers(readers: [VariantReader]):
 			query_reader = reader
 			break
 
+	query_chrom = query_reader.current[CHROM_INDEX]
 	query_pos = int(query_reader.current[POS_INDEX])
 	query_filter_for = query_reader.filter_for
 	query_caller_name = query_reader.caller_name
@@ -175,6 +186,11 @@ def compare_readers(readers: [VariantReader]):
 		if other_reader is query_reader:
 			continue
 
+		other_chrom = other_reader.current[CHROM_INDEX]
+		if query_chrom != other_chrom: 
+			continue
+
+		other_pos = int(other_reader.current[POS_INDEX])
 		other_caller_name = other_reader.caller_name
 
 		# Scotch and Pindel insertions must have correlates in DeepVariant, GATK HC, or VarScan
@@ -183,7 +199,6 @@ def compare_readers(readers: [VariantReader]):
 			(other_caller_name is Caller.SCOTCH or other_caller_name is Caller.PINDELL)):
 				continue
 		
-		other_pos = int(other_reader.current[POS_INDEX])
 
 		# check if calls are within distance threshold
 		# (don't need to check types match because all iterators only do one type at a time)
@@ -195,7 +210,6 @@ def compare_readers(readers: [VariantReader]):
 def start_compare(readers: [VariantReader]) -> None:
 
 	# at start, need to compare each list of variants to each other
-	print("Starting comparison...")
 	for reader in readers:
 		for r in readers:
 			r.is_newest = False
