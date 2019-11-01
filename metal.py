@@ -5,45 +5,111 @@ import csv
 from enum import Enum
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 import typing
-from typing import Any, List, NamedTuple
+from typing import Any, List
 
 # Constants
+CHROM_INDEX = 0
+POS_INDEX = 1
+INDEL_TYPE_INDEX = 2
 DIST_THRESHOLD = 3
 DELIMITER = "\t"
 
-class VariantReader(NamedTuple):
+class Caller(Enum):
+	SCOTCH = "Scotch"
+	DEEPVARIANT = "DeepVariant"
+	GATKHC = "GATK-HC"
+	VARSCAN = "VarScan"
+	PINDELL = "Pindel-L"
+
+class IndelType(Enum): 
+	DEL_L = "<DEL_L>"
+	DEL_R = "<DEL_R>"
+	INS = "<INS>"
+
+# A class that wraps around a generator (reader) that yields
+# indel breakpoints from a breakpoints file, and includes
+class VariantReader(SimpleNamespace):
+	# name of caller that called variants
+	caller_name: Caller
+	
+	# variant the generator is currently on
 	current: List
+
+	# generator yielding indel breakpoints
 	reader: Any
+
+	# the indel type the reader is currently considering
+	# important: because we advance a group of readers by just incrementing the one with the lowest position
+	# we can skip over correlates because they need to be not just near in position
+	# but also have the same indel type
+	# so we iterate over the variants multiple times, each time pulling out one kind of indel type
+	filter_for: IndelType
+
+	# whether we've hit the end of the generator
 	has_next: bool
-	should_print_current: bool
 
-class Callers(Enum):
-	SCOTCH = 1
-	DEEPVARIANT = 2
-	GATKHC = 3
-	VARSCAN = 4
-	PINDELL = 5
+	# list of callers who have calls that correlate with current
+	correlates: [Caller]
 
-deepvariant_vcf_path = ""
-gatkhc_vcf_path = ""
-pindell_vcf_path = "" # should be pindel-l
-varscan_vcf_path = ""
-scotch_vcf_path = ""
+	# whether we've printed current (don't want to print twice)
+	have_printed_current: bool
 
-def print_variant(variant: List) -> None:
-	print(variant)
+	# for when this reader is in a list of readers, whether this one was the most recently advanced
+	is_newest: bool
 
-def get_reader(vcf: Any) -> VariantReader:
-	reader = csv.reader(vcf, delimiter=DELIMITER)
+# from a variant record, return enum item representing indel type
+def get_indel_type(variant: [str]) -> IndelType:
+	indel_type_map = {
+		"<DEL_L>": IndelType.DEL_L,
+		"<DEL_R>": IndelType.DEL_R,
+		"<INS>": IndelType.INS
+	}
+	assert variant[INDEL_TYPE_INDEX] in indel_type_map.keys(), \
+		f"Variant at {variant[CHROM_INDEX]}:{variant[POS_INDEX]} has unexpected type {variant[INDEL_TYPE_INDEX]}"
+	return indel_type_map[variant[INDEL_TYPE_INDEX]]
+
+# return a VariantReader object that wraps around a list of breakpoints
+def get_reader(tsv: Any, filter_for: IndelType, caller_name: Caller) -> VariantReader:
+
+	print(tsv)
+	reader = (variant for variant in csv.reader(tsv, delimiter=DELIMITER)
+		if variant[INDEL_TYPE_INDEX] == filter_for.value)
+	print(f"{caller_name}: {next(reader)}")
+
 	return VariantReader(
+		caller_name=caller_name,
 		current=next(reader),
 		reader=reader,
+		filter_for=filter_for,
 		has_next=True,
-		should_print_current=False
+		correlates=[],
+		have_printed_current=False,
+		is_newest=False
 	)
 
-def run_script(script_name, *args):
+# removing duplicates (same chrom, pos, indel type) from output
+# and sort numerically by position
+def sort_output(output_tsv: Path, sorted_output_tsv: Path) -> None:
+
+	# first sort considers everything up to ">" in allele, and sorts on that uniquely
+	# second sort sorts all calls by position in (asc.) numeerical order
+	sort_cmd = f"""sort -t">" -k1,1 -u {output_tsv} | sort -t$'\t' -k2,2n > {sorted_output_tsv}"""
+	print(f"Sorting: {sort_cmd}")
+	output = subprocess.check_output(sort_cmd, shell=True)
+	print(f"Output: {output}")
+
+# write current variant if has correlates
+def check_current(reader: VariantReader) -> None:
+
+	if reader.correlates and not reader.have_printed_current:
+		called_in = ",".join([reader.caller_name.value] + [c.value for c in reader.correlates])
+		output_writer.writerow(reader.current + [called_in])
+		reader.have_printed_current = True
+
+# run a script with given args
+def run_script(script_name, *args) -> None:
 	metal_dir: Path = Path(__file__).absolute().parent
 	script: Path = metal_dir / script_name
 	str_args = [str(a) for a in args]
@@ -54,6 +120,8 @@ def run_script(script_name, *args):
 	else:
 		subprocess.call(["python", script] + str_args)
 
+# given a list of VariantReaders, advance the one that's at the lowest position
+# and still has more variants to yield
 def advance_readers(readers: [VariantReader]):
 
 	readers_with_next = [reader for reader in readers if reader.has_next]
@@ -61,82 +129,93 @@ def advance_readers(readers: [VariantReader]):
 	# if no readers have next, we're done
 	if not readers_with_next: 
 		for reader in readers:
-			if reader.should_print_current:
-				print_variant(reader.current)
+			check_current(reader)
 		return False
 
-	lowest = min(readers_with_next, key=(lambda r: r.current.pos))
+	lowest = min(readers_with_next, key=(lambda r: int(r.current[POS_INDEX])))
 	lowest_next = next(lowest.reader, None)
 
 	if lowest_next:
 
-		# print current if should
-		if lowest.should_print_current: 
-			print_variant(lowest.current)
-			lowest.should_print_current = False
+		# we successfully incremented this reader, print the current variant if it had a correlate
+		check_current(lowest)
 		lowest.current = lowest_next
-		lowest.should_print_current = False
+		lowest.correlates = []
+		lowest.have_printed_current = False
 
-		# set all the other is_newest to false
+		# set only this reader to have is_newest = True
 		for reader in readers:
 			reader.is_newest = False
 		lowest.is_newest = True
 
 	else:
-		# at the end of this file, advance the next loewst
+		# this reader has no more variants to yield,
+		# advance the one with the next lowest position
 		lowest.has_next = False
 		advance_readers(readers)
 
 	return True
 
-# VariantReader, List of VariantReader
+# compare current variants in each reader, 
+# looking for calls that have correlates from other callers
 def compare_readers(readers: [VariantReader]): 
 
-	# actually just need to compare newest to rest
+	# compare the most recently advanced reader to the rest
 	for reader in readers:
 		if reader.is_newest:
-			newest_reader = reader
+			query_reader = reader
+			break
 
-	newest_pos = newest_reader.current[POS_INDEX] #make sure is int
+	query_pos = int(query_reader.current[POS_INDEX])
+	query_filter_for = query_reader.filter_for
+	query_caller_name = query_reader.caller_name
 
-	# compare to others
+	# compare to results from other callers
 	for other_reader in readers:
-		if other_reader.is_newest: 
+		if other_reader is query_reader:
 			continue
 
-		other_pos = other_reader.current[POS_INDEX]
-		if abs(newest_pos - other_pos) < DIST_THRESHOLD:
-			newest_reader.should_print_current = True
-			other_reader.should_print_current = True
+		other_caller_name = other_reader.caller_name
 
+		# Scotch and Pindel insertions must have correlates in DeepVariant, GATK HC, or VarScan
+		if (query_filter_for is IndelType.INS and
+			(query_caller_name is Caller.SCOTCH or query_caller_name is Caller.PINDELL) and
+			(other_caller_name is Caller.SCOTCH or other_caller_name is Caller.PINDELL)):
+				continue
+		
+		other_pos = int(other_reader.current[POS_INDEX])
+
+		# check if calls are within distance threshold
+		# (don't need to check types match because all iterators only do one type at a time)
+		if abs(query_pos - other_pos) < DIST_THRESHOLD:
+			query_reader.correlates.append(other_caller_name)
+			other_reader.correlates.append(query_caller_name)
+
+# start the comparison process, looking for correlating variants from different callesr
 def start_compare(readers: [VariantReader]) -> None:
 
 	# at start, need to compare each list of variants to each other
-	for i in range(len(readers)):
+	print("Starting comparison...")
+	for reader in readers:
 		for r in readers:
 			r.is_newest = False
-			r.should_print_current = False
-		readers[i].is_newest = True
-		compare_readers(readers)
-		for r in readers:
-			if r.should_print_current:
-				print_variant(r.current)
+			r.correlates = []
 
-	# leave the last one with is_newest = True
-	for r in readers:
-		r.should_print_current = False
+		reader.is_newest = True
+		compare_readers(readers)
+
+		for r in readers:
+			check_current(r)
 
 	# advance through variant lists
-	while True:
+	while advance_readers(readers):
+		positions = [r.current[POS_INDEX] for r in readers]
+		all_positions = " - ".join(positions)
+		
 		compare_readers(readers)
-		has_more = advance_readers(readers)
-		if not has_more:
-			break
 
 	for r in readers:
-		if r.should_print_current:
-			print_variant(r.current)
-
+		check_current(r)
 
 if __name__ ==  "__main__":
 
@@ -153,7 +232,7 @@ if __name__ ==  "__main__":
 	# get breakpoints
 	output_dir: Path = Path(args.output_dir)
 	assert output_dir.is_dir(), f"output_dir {args.output_dir} must be a directory that exists"
-	
+
 	get_breakpoints = "getBreakpoints.sh"
 	breakpoints_dir: Path = output_dir / "breakpoints/"
 	breakpoints_dir.mkdir(exist_ok=True) #exist ok ? 
@@ -165,25 +244,51 @@ if __name__ ==  "__main__":
 		"varscan": args.varscan_vcf,
 		"pindell": args.pindell_vcf,
 	}
+	breakpoints_tsvs = {}
 
 	for caller_name, vcf in vcfs.items():
 		assert Path(vcf).is_file(), f"--{caller_name} must be a VCF file that exists"
 		breakpoints_tsv: Path = breakpoints_dir / f"{caller_name}.breakpoints.tsv"
-		# TODO: check dne so not overwriting?
+		
+		assert not breakpoints_tsv.exists(), f"Metal writes to {breakpoints_tsv} but that already exists: please delete or move"
 		run_script(get_breakpoints, vcf, breakpoints_tsv)
 
+		breakpoints_tsvs[caller_name] = breakpoints_tsv
+	
+	# TODO: check metal.tsv dne also?
+	output_tsv: Path = output_dir / "metal.unsorted.tsv"
+	assert not output_tsv.exists(), f"Metal writes to {output_tsv} but that alredy exists: please delete or move"	
+	output = open(output_tsv, "w")
+	output_writer = csv.writer(output, delimiter=DELIMITER)
 
-	with open(args.scotch_vcf) as scotch_variants, \
-		open(args.deepvariant_vcf) as deepvariant_variants, \
-		open(args.gatkhc_vcf) as gatkhc_variants, \
-		open(args.varscan_vcf) as varscan_variants, \
-		open(args.pindell_vcf) as pindell_variants:
+	# compare breakpoints
+	with open(breakpoints_tsvs["scotch"]) as scotch_variants, \
+		open(breakpoints_tsvs["deepvariant"]) as deepvariant_variants, \
+		open(breakpoints_tsvs["gatkhc"]) as gatkhc_variants, \
+		open(breakpoints_tsvs["varscan"]) as varscan_variants, \
+		open(breakpoints_tsvs["pindell"]) as pindell_variants:
 
-		variants = (scotch_variants, deepvariant_variants, gatkhc_variants, varscan_variants, pindell_variants)
-		#readers = [get_reader(v) for v in variants]      
+		for indel_type in IndelType:
 
-		print("starting compare")
-		#start_compare(readers)
+			print(f"Comparing calls of type {indel_type}...")
+			readers = [
+				get_reader(scotch_variants, indel_type, Caller.SCOTCH),
+				get_reader(deepvariant_variants, indel_type, Caller.DEEPVARIANT),
+				get_reader(gatkhc_variants, indel_type, Caller.GATKHC),
+				get_reader(varscan_variants, indel_type, Caller.VARSCAN), 
+				get_reader(pindell_variants, indel_type, Caller.PINDELL)
+			]
 
+			start_compare(readers)
+			# go back to start of file so can read again from start later
+			for variants_list in [scotch_variants, deepvariant_variants, gatkhc_variants,
+				varscan_variants, pindell_variants]:
+				variants_list.seek(0)
+	
+	output.close()
+
+	sorted_output_tsv: Path = output_dir / "metal.tsv"
+	assert not sorted_output_tsv.exists(), f"Metal writes to {sorted_output_tsv} but that already exists: please delete or move"
+	sort_output(output_tsv, sorted_output_tsv)
 
 	print("Done.")

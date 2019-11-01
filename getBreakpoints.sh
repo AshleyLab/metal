@@ -53,4 +53,5 @@ egrep -v ^# "$vcf" | awk -F'\t' '{
 		print chrom, pos, "<INS>", insLength
 
 	}
+
 }' > "$output"
