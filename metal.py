@@ -225,11 +225,13 @@ if __name__ ==  "__main__":
 	parser.add_argument("-g", "--gatkhc_vcf", required=True, type=str, help="Path to GATK HC VCF")
 	parser.add_argument("-v", "--varscan_vcf", required=True, type=str, help="Path to Varscan VCF")
 	parser.add_argument("-p", "--pindell_vcf", required=True, type=str, help="Path to Pindel-L VCF")
+	parser.add_argument("-r", "--ref_fasta", required=True, type=str, help="Path to reference FASTA")
 	parser.add_argument("-o", "--output_dir", required=True, type=str, help="Path to output directory")
 	args = parser.parse_args()
 	print(args)
 
 	# get breakpoints
+	ref_fasta: Path = Path(args.ref_fasta)
 	output_dir: Path = Path(args.output_dir)
 	assert output_dir.is_dir(), f"output_dir {args.output_dir} must be a directory that exists"
 
@@ -290,5 +292,12 @@ if __name__ ==  "__main__":
 	sorted_output_tsv: Path = output_dir / "metal.tsv"
 	assert not sorted_output_tsv.exists(), f"Metal writes to {sorted_output_tsv} but that already exists: please delete or move"
 	sort_output(output_tsv, sorted_output_tsv)
+
+	# make VCFs
+	print("Running makeVCFs.py...")
+	make_vcfs = "makeVCFs.py"
+
+	metal_output_stub: str = str((output_dir / "metal").resolve())
+	run_script(make_vcfs, sorted_output_tsv, ref_fasta, metal_output_stub)
 
 	print("Done.")
