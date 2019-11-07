@@ -29,7 +29,7 @@ class IndelType(Enum):
 	INS = "<INS>"
 
 # A class that wraps around a generator (reader) that yields
-# indel breakpoints from a breakpoints file, and includes
+# indel breakpoints from a breakpoints file
 class VariantReader(SimpleNamespace):
 	# name of caller that called variants
 	caller_name: Caller
@@ -223,9 +223,6 @@ def start_compare(readers: [VariantReader]) -> None:
 
 	# advance through variant lists
 	while advance_readers(readers):
-		positions = [r.current[POS_INDEX] for r in readers]
-		all_positions = " - ".join(positions)
-		
 		compare_readers(readers)
 
 	for r in readers:
