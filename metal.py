@@ -268,7 +268,6 @@ if __name__ ==  "__main__":
 
 		breakpoints_tsvs[caller_name] = breakpoints_tsv
 	
-	# TODO: check metal.tsv dne also?
 	output_tsv: Path = output_dir / "metal.unsorted.tsv"
 	assert not output_tsv.exists(), f"Metal writes to {output_tsv} but that alredy exists: please delete or move"	
 	output = open(output_tsv, "w")
