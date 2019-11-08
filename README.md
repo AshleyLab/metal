@@ -24,3 +24,10 @@ optional arguments:
   -o OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Path to output directory
 ```
+
+## Dependencies
+
+Metal requires the following Python packages:
+```
+pysam
+```
