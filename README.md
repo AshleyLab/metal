@@ -1,5 +1,36 @@
 # metal
 
+Metal is a meta indel caller that composes calls from [Scotch](https://github.com/AshleyLab/scotch), DeepVariant, GATK HaplotypeCallr, VarScan2, and Pindel (run with the "-l" option for best results). 
+
+## Installation 
+
+Clone this repository. 
+
+```
+git clone https://github.com/AshleyLab/metal.git
+```
+
+## Dependencies
+
+Metal requires the following Python packages:
+```
+pysam
+```
+
+## Run
+
+### Overview
+
+After running Scotch, DeepVariant, GATK HaploypeCaller, VarScan2, and Pindel, run Metal like this. 
+
+```
+
+python metal.py -s $scotch_vcf -d $deepvariant_vcf -g $gatkhc_vcf \
+	-v $varscan_vcf -p $pindell_vcf -r $ref_fasta -o $output_dir
+
+```
+### Input
+
 ```
 $ python metal.py -h
 usage: metal.py [-h] -s SCOTCH_VCF -d DEEPVARIANT_VCF -g GATKHC_VCF -v
@@ -23,11 +54,4 @@ optional arguments:
                         Path to reference FASTA
   -o OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Path to output directory
-```
-
-## Dependencies
-
-Metal requires the following Python packages:
-```
-pysam
 ```
