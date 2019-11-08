@@ -62,7 +62,7 @@ Metal produces several output files. `metal.vcf` includes all the results in VCF
 
 #### Encoding
 
-Metal also produced several VCF files where indel breakpoints are _encoded_ as regular variants. The motivation is that some tools (including Scotch and Pindel) do not report the nucleotide sequence of alternate alleles for all variants. (They may, for example, report just `<INS>` instead.) As a result, output VCFs that include their calls, like `metal.vcf`, may not be recognized as conforming to valid VCFs. 
+Metal also produces several VCF files where indel breakpoints are _encoded_ as regular variants. The motivation is that some tools (including Scotch and Pindel) do not report the nucleotide sequence of alternate alleles for all variants. (They may, for example, report just `<INS>` instead.) As a result, output VCFs that include their calls, like `metal.vcf`, may not be recognized as conforming to valid VCFs. 
 
 `encode.py` translates each indel breakpoint into an SNV at the same locus with an arbitary alternate allele, producing strictly valid VCF output. `[stub].encode_del_L.vcf` includes deletion start breakpoints represented this way, `[stub].encode_del_R.vcf` includes deletion end breakpoints, `[stub].encode_ins.vcf` includes insertion breakpoints, and `[stub].encode_all.vcf` includes all breakpoints. 
 
