@@ -1,6 +1,6 @@
 # Metal
 
-Metal is a meta indel caller that composes calls from [Scotch](https://github.com/AshleyLab/scotch), DeepVariant, GATK HaplotypeCallr, VarScan2, and Pindel (run with the "-l" option for best results). 
+Metal is a meta indel caller that composes calls from [Scotch](https://github.com/AshleyLab/scotch), DeepVariant, GATK HaplotypeCaller, Pindel (run with the `-l` option for best results), and VarScan2. 
 
 ## Installation 
 
