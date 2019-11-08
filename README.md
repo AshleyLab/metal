@@ -54,4 +54,13 @@ optional arguments:
                         Path to reference FASTA
   -o OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Path to output directory
+
 ```
+### Output
+```
+
+Metal produces several output files. `metal.vcf` includes all the results in VCF format, with alternate alleles represented by `<DEL_L>`,`<DEL_R>` or `<INS>` representing a deletion start, deletion end or insertion breakpoint, respectively. 
+
+
+#### Encoding
+
