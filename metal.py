@@ -73,10 +73,8 @@ def get_indel_type(variant: [str]) -> IndelType:
 # return a VariantReader object that wraps around a list of breakpoints
 def get_reader(tsv: Any, filter_for: IndelType, caller_name: Caller) -> VariantReader:
 
-	print(tsv)
 	reader = (variant for variant in csv.reader(tsv, delimiter=DELIMITER)
 		if variant[INDEL_TYPE_INDEX] == filter_for.value)
-	print(f"{caller_name}: {next(reader)}")
 
 	return VariantReader(
 		caller_name=caller_name,
@@ -244,11 +242,11 @@ if __name__ ==  "__main__":
 	# get breakpoints
 	ref_fasta: Path = Path(args.ref_fasta)
 	output_dir: Path = Path(args.output_dir)
-	assert output_dir.is_dir(), f"output_dir {args.output_dir} must be a directory that exists"
+	output_dir.mkdir(exist_ok=True) 
 
 	get_breakpoints = "getBreakpoints.sh"
 	breakpoints_dir: Path = output_dir / "breakpoints/"
-	breakpoints_dir.mkdir(exist_ok=True) #exist ok ? 
+	breakpoints_dir.mkdir(exist_ok=True)
 
 	vcfs = {
 		"scotch": args.scotch_vcf,
