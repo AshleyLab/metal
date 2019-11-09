@@ -29,6 +29,9 @@ python metal.py -s $scotch_vcf -d $deepvariant_vcf -g $gatkhc_vcf \
 	-v $varscan_vcf -p $pindell_vcf -r $ref_fasta -o $output_dir
 
 ```
+
+To run Metal without the results from any of these callers, pass an empty file (touch `caller.vcf`) to Scotch.
+
 ### Input
 
 ```

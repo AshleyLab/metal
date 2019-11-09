@@ -75,10 +75,14 @@ def get_reader(tsv: Any, filter_for: IndelType, caller_name: Caller) -> VariantR
 
 	reader = (variant for variant in csv.reader(tsv, delimiter=DELIMITER)
 		if variant[INDEL_TYPE_INDEX] == filter_for.value)
+	try:
+		first_variant = next(reader)
+	except StopIteration:
+		return None
 
 	return VariantReader(
 		caller_name=caller_name,
-		current=next(reader),
+		current=first_variant,
 		reader=reader,
 		filter_for=filter_for,
 		has_next=True,
@@ -281,13 +285,16 @@ if __name__ ==  "__main__":
 		for indel_type in IndelType:
 
 			print(f"Comparing calls of type {indel_type}...")
-			readers = [
+			all_readers = [
 				get_reader(scotch_variants, indel_type, Caller.SCOTCH),
 				get_reader(deepvariant_variants, indel_type, Caller.DEEPVARIANT),
 				get_reader(gatkhc_variants, indel_type, Caller.GATKHC),
 				get_reader(varscan_variants, indel_type, Caller.VARSCAN), 
 				get_reader(pindell_variants, indel_type, Caller.PINDELL)
 			]
+	
+			# remove None elements, readers with no variants
+			readers = [r for r in all_readers if r]
 
 			start_compare(readers)
 			# go back to start of file so can read again from start later
