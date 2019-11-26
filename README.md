@@ -30,7 +30,7 @@ python metal.py -s $scotch_vcf -d $deepvariant_vcf -g $gatkhc_vcf \
 
 ```
 
-To run Metal without the results from any of these callers, pass an empty file (touch `caller.vcf`) to `metal.py`.
+To run Metal without the results from any of these callers, pass an empty file (`touch caller.vcf`) to `metal.py`.
 
 ### Input
 
